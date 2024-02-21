@@ -1,0 +1,87 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "jp.kshoji",
+    "module": "inter-app-midi",
+    "version": "0.0.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.2"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "inter-app-midi-0.0.1.aar",
+          "url": "inter-app-midi-0.0.1.aar",
+          "size": 9148,
+          "sha512": "b357ee8848fbed4d575a0969e29a14fb6d89be1dc10b928f0fa4262cee0498afaa9cae6dff3e7b40e7d5234e89a82f6c25b15a3e1a4e4074beec4146cf682380",
+          "sha256": "2878ea14d1f278cd2c5ad0686a84744a3d6aae25168dfbf972df22bc8d3619aa",
+          "sha1": "3f9cbae327b6bc97031d8d389e14f909962f48a1",
+          "md5": "7dade6efb13b263570d9c14cfb8bca31"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.annotation",
+          "module": "annotation",
+          "version": {
+            "requires": "1.7.1"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "inter-app-midi-0.0.1.aar",
+          "url": "inter-app-midi-0.0.1.aar",
+          "size": 9148,
+          "sha512": "b357ee8848fbed4d575a0969e29a14fb6d89be1dc10b928f0fa4262cee0498afaa9cae6dff3e7b40e7d5234e89a82f6c25b15a3e1a4e4074beec4146cf682380",
+          "sha256": "2878ea14d1f278cd2c5ad0686a84744a3d6aae25168dfbf972df22bc8d3619aa",
+          "sha1": "3f9cbae327b6bc97031d8d389e14f909962f48a1",
+          "md5": "7dade6efb13b263570d9c14cfb8bca31"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "inter-app-midi-0.0.1-sources.jar",
+          "url": "inter-app-midi-0.0.1-sources.jar",
+          "size": 3654,
+          "sha512": "18b01f90a70e73c953e1169dac3fbf8433652c298d40b8651035a9735a421cbfcac9f7f97560d56d3e342fd01193fc89af90ef11f8839665cef460ed0a5bdb55",
+          "sha256": "053dcb49bac6a03ab291d5a1d30ce22f60123ec325b03bb74bd13f6700a93c41",
+          "sha1": "42446d0a1812a618569f697944d5cdc07dc5b158",
+          "md5": "c3e06c63ba6feabc3804bdb6c347e549"
+        }
+      ]
+    }
+  ]
+}

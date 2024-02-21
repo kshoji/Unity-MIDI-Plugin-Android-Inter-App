@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+}
+
+android {
+    defaultConfig {
+        compileSdk 34
+        minSdkVersion 18
+        targetSdkVersion 34
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
+    namespace 'jp.kshoji.interappmidi'
+}
+
+dependencies {
+    implementation 'androidx.annotation:annotation:1.7.1'
+    compileOnly project(':UnityPlayerMock')
+    api fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+publishing {
+    publications {
+        release(MavenPublication) {
+            group = 'jp.kshoji'
+            artifactId = 'inter-app-midi'
+            version = '0.0.1'
+
+            afterEvaluate {
+                from components.release
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            url = "${project.projectDir}/../library/repository"
+        }
+    }
+}
