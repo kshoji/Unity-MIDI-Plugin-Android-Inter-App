@@ -8,11 +8,22 @@ android {
         compileSdk 34
         minSdkVersion 18
         targetSdkVersion 34
+
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     buildTypes {
-        release {
+        debug {
             minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
@@ -36,7 +47,7 @@ publishing {
         release(MavenPublication) {
             group = 'jp.kshoji'
             artifactId = 'inter-app-midi'
-            version = '0.0.1'
+            version = '0.0.2'
 
             afterEvaluate {
                 from components.release
