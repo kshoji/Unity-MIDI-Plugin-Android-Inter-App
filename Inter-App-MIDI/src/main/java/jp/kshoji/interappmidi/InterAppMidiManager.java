@@ -12,6 +12,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.annotation.RequiresApi;
+
 import com.unity3d.player.UnityPlayer;
 
 import java.io.IOException;
@@ -23,25 +25,27 @@ import java.util.Map;
 import java.util.Set;
 
 public class InterAppMidiManager {
-    MidiManager midiManager;
-    final Handler handler = new Handler(Looper.getMainLooper());
+    private MidiManager midiManager;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
-    Map<String, MidiInputPort> inputPortMap;
-    Map<String, MidiReceiver> outputPortMap;
-    Map<MidiDeviceInfo, MidiDevice> openedDeviceMap;
-    Map<String, String> deviceNameMap;
-    Map<String, String> productIdMap;
-    Map<String, String> vendorIdMap;
-    Thread connectionWatcher;
-    volatile boolean connectionWatcherEnabled;
+    private final Map<String, MidiInputPort> inputPortMap = new HashMap<>();
+    private final Map<String, MidiReceiver> receiverMap = new HashMap<>();
+    private final Map<String, MidiOutputPort> outputPortMap = new HashMap<>();
+    private final Map<MidiDeviceInfo, MidiDevice> openedDeviceMap = new HashMap<>();
+    private final Map<String, String> deviceNameMap = new HashMap<>();
+    private final Map<String, String> productIdMap = new HashMap<>();
+    private final Map<String, String> vendorIdMap = new HashMap<>();
+    private Thread connectionWatcher;
+    private volatile boolean connectionWatcherEnabled;
 
     public void initialize(Context context) {
-        inputPortMap = new HashMap<>();
-        outputPortMap = new HashMap<>();
-        openedDeviceMap = new HashMap<>();
-        deviceNameMap = new HashMap<>();
-        productIdMap = new HashMap<>();
-        vendorIdMap = new HashMap<>();
+        inputPortMap.clear();
+        receiverMap.clear();
+        outputPortMap.clear();
+        openedDeviceMap.clear();
+        deviceNameMap.clear();
+        productIdMap.clear();
+        vendorIdMap.clear();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             midiManager = (MidiManager) context.getSystemService(Context.MIDI_SERVICE);
@@ -60,8 +64,19 @@ public class InterAppMidiManager {
                                 Collections.addAll(devices, midiManager.getDevices());
                             }
 
+                            // detect opened
                             for (MidiDeviceInfo device : devices) {
                                 openMidiDevice(device);
+                            }
+
+                            // detect closed
+                            for (MidiDeviceInfo connectedDevice : openedDeviceMap.keySet()) {
+                                if (!devices.contains(connectedDevice)) {
+                                    MidiDevice removed = openedDeviceMap.remove(connectedDevice);
+                                    if (removed != null) {
+                                        closeMidiDevice(removed);
+                                    }
+                                }
                             }
 
                             try {
@@ -84,14 +99,23 @@ public class InterAppMidiManager {
                 connectionWatcher = null;
             }
         }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            for (MidiDeviceInfo connectedDevice : openedDeviceMap.keySet()) {
+                MidiDevice removed = openedDeviceMap.remove(connectedDevice);
+                if (removed != null) {
+                    closeMidiDevice(removed);
+                }
+            }
+        }
     }
 
-    @androidx.annotation.RequiresApi(api = Build.VERSION_CODES.M)
+    @RequiresApi(api = Build.VERSION_CODES.M)
     static class InterAppMidiReceiver extends MidiReceiver {
         String deviceId;
         InterAppMidiReceiver(String deviceId) {
             this.deviceId = deviceId;
-        }
+         }
 
         @Override
         public void onSend(byte[] message, int offset, int count, long timestamp) throws IOException {
@@ -231,69 +255,107 @@ public class InterAppMidiManager {
         return String.format(Locale.US, "%s:%d-%d", isInput ? "in" : "out", deviceId, portId);
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     private void openMidiDevice(final MidiDeviceInfo device) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (device.getType() == MidiDeviceInfo.TYPE_VIRTUAL) {
-                if (openedDeviceMap.containsKey(device)) {
-                    return;
-                }
+        if (device.getType() == MidiDeviceInfo.TYPE_VIRTUAL) {
+            if (openedDeviceMap.containsKey(device)) {
+                return;
+            }
 
-                midiManager.openDevice(device, new MidiManager.OnDeviceOpenedListener() {
-                    @Override
-                    public void onDeviceOpened(MidiDevice midiDevice) {
-                        openedDeviceMap.put(device, midiDevice);
+            midiManager.openDevice(device, new MidiManager.OnDeviceOpenedListener() {
+                @Override
+                public void onDeviceOpened(MidiDevice midiDevice) {
+                    openedDeviceMap.put(device, midiDevice);
 
-                        Bundle properties = midiDevice.getInfo().getProperties();
-                        String deviceName = properties.getString(MidiDeviceInfo.PROPERTY_NAME);
-                        String product = properties.getString(MidiDeviceInfo.PROPERTY_PRODUCT);
-                        String vendor = properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER);
+                    Bundle properties = midiDevice.getInfo().getProperties();
+                    String deviceName = properties.getString(MidiDeviceInfo.PROPERTY_NAME);
+                    String product = properties.getString(MidiDeviceInfo.PROPERTY_PRODUCT);
+                    String vendor = properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER);
 
-                        for (int i = 0; i < midiDevice.getInfo().getInputPortCount(); i++) {
-                            // MidiInputPort: used for MIDI sending
-                            String deviceId = getDeviceId(midiDevice.getInfo().getId(), false, i);
-                            if (!inputPortMap.containsKey(deviceId)) {
-                                MidiInputPort midiInputPort = midiDevice.openInputPort(i);
-                                if (midiInputPort != null) {
-                                    inputPortMap.put(deviceId, midiInputPort);
-                                    if (deviceName != null) {
-                                        deviceNameMap.put(deviceId, deviceName);
-                                    }
-                                    if (product != null) {
-                                        productIdMap.put(deviceId, product);
-                                    }
-                                    if (vendor != null) {
-                                        vendorIdMap.put(deviceId, vendor);
-                                    }
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiOutputDeviceAttached", deviceId);
+                    for (int i = 0; i < midiDevice.getInfo().getInputPortCount(); i++) {
+                        // MidiInputPort: used for MIDI sending
+                        String deviceId = getDeviceId(midiDevice.getInfo().getId(), false, i);
+                        if (!inputPortMap.containsKey(deviceId)) {
+                            MidiInputPort midiInputPort = midiDevice.openInputPort(i);
+                            if (midiInputPort != null) {
+                                inputPortMap.put(deviceId, midiInputPort);
+                                if (deviceName != null) {
+                                    deviceNameMap.put(deviceId, deviceName);
                                 }
-                            }
-                        }
-
-                        for (int i = 0; i < midiDevice.getInfo().getOutputPortCount(); i++) {
-                            // MidiOutputPort: used for MIDI receiving
-                            String deviceId = getDeviceId(midiDevice.getInfo().getId(), true, i);
-                            if (!outputPortMap.containsKey(deviceId)) {
-                                MidiOutputPort midiOutputPort = midiDevice.openOutputPort(i);
-                                if (midiOutputPort != null) {
-                                    MidiReceiver receiver = new InterAppMidiReceiver(deviceId);
-                                    midiOutputPort.onConnect(receiver);
-                                    outputPortMap.put(deviceId, receiver);
-                                    if (deviceName != null) {
-                                        deviceNameMap.put(deviceId, deviceName);
-                                    }
-                                    if (product != null) {
-                                        productIdMap.put(deviceId, product);
-                                    }
-                                    if (vendor != null) {
-                                        vendorIdMap.put(deviceId, vendor);
-                                    }
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiInputDeviceAttached", deviceId);
+                                if (product != null) {
+                                    productIdMap.put(deviceId, product);
                                 }
+                                if (vendor != null) {
+                                    vendorIdMap.put(deviceId, vendor);
+                                }
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiOutputDeviceAttached", deviceId);
                             }
                         }
                     }
-                }, handler);
+
+                    for (int i = 0; i < midiDevice.getInfo().getOutputPortCount(); i++) {
+                        // MidiOutputPort: used for MIDI receiving
+                        String deviceId = getDeviceId(midiDevice.getInfo().getId(), true, i);
+                        if (!outputPortMap.containsKey(deviceId)) {
+                            MidiOutputPort midiOutputPort = midiDevice.openOutputPort(i);
+                            if (midiOutputPort != null) {
+                                MidiReceiver receiver = new InterAppMidiReceiver(deviceId);
+                                receiverMap.put(deviceId, receiver);
+                                midiOutputPort.onConnect(receiver);
+                                outputPortMap.put(deviceId, midiOutputPort);
+                                if (deviceName != null) {
+                                    deviceNameMap.put(deviceId, deviceName);
+                                }
+                                if (product != null) {
+                                    productIdMap.put(deviceId, product);
+                                }
+                                if (vendor != null) {
+                                    vendorIdMap.put(deviceId, vendor);
+                                }
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiInputDeviceAttached", deviceId);
+                            }
+                        }
+                    }
+                }
+            }, handler);
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private void closeMidiDevice(final MidiDevice device) {
+        for (int i = 0; i < device.getInfo().getInputPortCount(); i++) {
+            String deviceId = getDeviceId(device.getInfo().getId(), false, i);
+            MidiInputPort inputPort = inputPortMap.remove(deviceId);
+            if (inputPort != null) {
+                try {
+                    inputPort.close();
+                } catch (IOException ignored) {
+                }
             }
+        }
+
+        for (int i = 0; i < device.getInfo().getOutputPortCount(); i++) {
+            String deviceId = getDeviceId(device.getInfo().getId(), true, i);
+            MidiOutputPort outputPort = outputPortMap.remove(deviceId);
+            if (outputPort != null) {
+                MidiReceiver receiver = receiverMap.remove(deviceId);
+                if (receiver != null) {
+                    try {
+                        receiver.flush();
+                    } catch (IOException ignored) {
+                    }
+                    outputPort.onDisconnect(receiver);
+                }
+                try {
+                    outputPort.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+
+        try {
+            device.close();
+        } catch (IOException ignored) {
         }
     }
 
