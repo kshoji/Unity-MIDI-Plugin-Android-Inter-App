@@ -12,36 +12,42 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.annotation.RequiresApi;
+
 import com.unity3d.player.UnityPlayer;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Inter-App MIDI Plugin for Unity
+ */
 public class InterAppMidiManager {
-    MidiManager midiManager;
-    final Handler handler = new Handler(Looper.getMainLooper());
+    private MidiManager midiManager;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
-    Map<String, MidiInputPort> inputPortMap;
-    Map<String, MidiReceiver> outputPortMap;
-    Map<MidiDeviceInfo, MidiDevice> openedDeviceMap;
-    Map<String, String> deviceNameMap;
-    Map<String, String> productIdMap;
-    Map<String, String> vendorIdMap;
-    Thread connectionWatcher;
-    volatile boolean connectionWatcherEnabled;
+    private final Map<String, MidiInputPort> inputPortMap = new HashMap<>();
+    private final Map<String, InterAppMidiReceiver> receiverMap = new HashMap<>();
+    private final Map<String, MidiOutputPort> outputPortMap = new HashMap<>();
+    private final Map<MidiDeviceInfo, MidiDevice> openedDeviceMap = new HashMap<>();
+    private final Map<String, String> deviceNameMap = new HashMap<>();
+    private final Map<String, String> productIdMap = new HashMap<>();
+    private final Map<String, String> vendorIdMap = new HashMap<>();
+    private Thread connectionWatcher;
+    private volatile boolean connectionWatcherEnabled;
 
     public void initialize(Context context) {
-        inputPortMap = new HashMap<>();
-        outputPortMap = new HashMap<>();
-        openedDeviceMap = new HashMap<>();
-        deviceNameMap = new HashMap<>();
-        productIdMap = new HashMap<>();
-        vendorIdMap = new HashMap<>();
+        inputPortMap.clear();
+        receiverMap.clear();
+        outputPortMap.clear();
+        openedDeviceMap.clear();
+        deviceNameMap.clear();
+        productIdMap.clear();
+        vendorIdMap.clear();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             midiManager = (MidiManager) context.getSystemService(Context.MIDI_SERVICE);
@@ -60,8 +66,19 @@ public class InterAppMidiManager {
                                 Collections.addAll(devices, midiManager.getDevices());
                             }
 
+                            // detect opened
                             for (MidiDeviceInfo device : devices) {
                                 openMidiDevice(device);
+                            }
+
+                            // detect closed
+                            for (MidiDeviceInfo connectedDevice : openedDeviceMap.keySet()) {
+                                if (!devices.contains(connectedDevice)) {
+                                    MidiDevice removed = openedDeviceMap.remove(connectedDevice);
+                                    if (removed != null) {
+                                        closeMidiDevice(removed);
+                                    }
+                                }
                             }
 
                             try {
@@ -84,12 +101,21 @@ public class InterAppMidiManager {
                 connectionWatcher = null;
             }
         }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            for (MidiDeviceInfo connectedDevice : openedDeviceMap.keySet()) {
+                MidiDevice removed = openedDeviceMap.remove(connectedDevice);
+                if (removed != null) {
+                    closeMidiDevice(removed);
+                }
+            }
+        }
     }
 
-    @androidx.annotation.RequiresApi(api = Build.VERSION_CODES.M)
-    static class InterAppMidiReceiver extends MidiReceiver {
-        String deviceId;
-        InterAppMidiReceiver(String deviceId) {
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private static class InterAppMidiReceiver extends MidiReceiver {
+        private final String deviceId;
+        private InterAppMidiReceiver(String deviceId) {
             this.deviceId = deviceId;
         }
 
@@ -102,43 +128,68 @@ public class InterAppMidiManager {
                 switch (midiData[i] & 0xf0) {
                     case 0x80:
                         if (midiData.length >= i + 3) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiNoteOff", String.format(Locale.US, "%s,0,%d,%d,%d", deviceId, midiData[i] & 0xf, midiData[i + 1], midiData[i + 2]));
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1]).append(",")
+                                    .append(midiData[i + 2]).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiNoteOff", data);
                         }
                         i += 3;
                         break;
                     case 0x90:
                         if (midiData.length >= i + 3) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiNoteOn", String.format(Locale.US, "%s,0,%d,%d,%d", deviceId, midiData[i] & 0xf, midiData[i + 1], midiData[i + 2]));
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1]).append(",")
+                                    .append(midiData[i + 2]).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiNoteOn", data);
                         }
                         i += 3;
                         break;
                     case 0xa0: // Polyphonic Aftertouch
                         if (midiData.length >= i + 3) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiPolyphonicAftertouch", deviceId + ",0," + (midiData[i] & 0xf) + "," + midiData[i + 1] + "," + midiData[i + 2]);
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1]).append(",")
+                                    .append(midiData[i + 2]).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiPolyphonicAftertouch", data);
                         }
                         i += 3;
                         break;
                     case 0xb0: // Control Change
                         if (midiData.length >= i + 3) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiControlChange", deviceId + ",0," + (midiData[i] & 0xf) + "," + midiData[i + 1] + "," + midiData[i + 2]);
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1]).append(",")
+                                    .append(midiData[i + 2]).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiControlChange", data);
                         }
                         i += 3;
                         break;
                     case 0xc0: // Program Change
                         if (midiData.length >= i + 2) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiProgramChange", deviceId + ",0," + (midiData[i] & 0xf) + "," + midiData[i + 1]);
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1]).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiProgramChange", data);
                         }
                         i += 2;
                         break;
                     case 0xd0: // Channel Aftertouch
                         if (midiData.length >= i + 2) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiChannelAftertouch", deviceId + ",0," + (midiData[i] & 0xf) + "," + midiData[i + 1]);
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1]).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiChannelAftertouch", data);
                         }
                         i += 2;
                         break;
                     case 0xe0: // Pitch Wheel
                         if (midiData.length >= i + 3) {
-                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiPitchWheel", deviceId + ",0," + (midiData[i] & 0xf) + "," + (midiData[i + 1] | (midiData[i + 2] << 7)));
+                            String data = new StringBuilder().append(deviceId).append(",0,")
+                                    .append(midiData[i] & 0xf).append(",")
+                                    .append(midiData[i + 1] | (midiData[i + 2] << 7)).toString();
+                            UnityPlayer.UnitySendMessage("MidiManager", "OnMidiPitchWheel", data);
                         }
                         i += 3;
                         break;
@@ -168,48 +219,54 @@ public class InterAppMidiManager {
                             break;
                             case 0xf1: // Time Code Quarter Frame
                                 if (midiData.length >= i + 2) {
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiTimeCodeQuarterFrame", deviceId + ",0," + midiData[i + 1]);
+                                    String data = new StringBuilder().append(deviceId).append(",0,")
+                                            .append(midiData[i + 1]).toString();
+                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiTimeCodeQuarterFrame", data);
                                 }
                                 i += 2;
                                 break;
                             case 0xf2: // Song Position Pointer
                                 if (midiData.length >= i + 3) {
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiSongPositionPointer", deviceId + ",0," + (midiData[i + 1] | (midiData[i + 2] << 7)));
+                                    String data = new StringBuilder().append(deviceId).append(",0,")
+                                            .append(midiData[i + 1] | (midiData[i + 2] << 7)).toString();
+                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiSongPositionPointer", data);
                                 }
                                 i += 3;
                                 break;
                             case 0xf3: // Song Select
                                 if (midiData.length >= i + 2) {
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiSongSelect", deviceId + ",0," + midiData[i + 1]);
+                                    String data = new StringBuilder().append(deviceId).append(",0,")
+                                            .append(midiData[i + 1]).toString();
+                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiSongSelect", data);
                                 }
                                 i += 2;
                                 break;
                             case 0xf6: // Tune Request
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiTuneRequest", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiTuneRequest", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
                             case 0xf8: // Timing Clock
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiTimingClock", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiTimingClock", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
                             case 0xfa: // Start
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiStart", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiStart", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
                             case 0xfb: // Continue
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiContinue", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiContinue", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
                             case 0xfc: // Stop
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiStop", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiStop", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
                             case 0xfe: // Active Sensing
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiActiveSensing", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiActiveSensing", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
                             case 0xff: // Reset
-                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiReset", deviceId + ",0");
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiReset", new StringBuilder().append(deviceId).append(",0").toString());
                                 i++;
                                 break;
 
@@ -228,72 +285,114 @@ public class InterAppMidiManager {
     }
 
     private static String getDeviceId(int deviceId, boolean isInput, int portId) {
-        return String.format(Locale.US, "%s:%d-%d", isInput ? "in" : "out", deviceId, portId);
+        return new StringBuilder().append(isInput ? "in" : "out").append(":").append(deviceId).append("-").append(portId).toString();
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     private void openMidiDevice(final MidiDeviceInfo device) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (device.getType() == MidiDeviceInfo.TYPE_VIRTUAL) {
-                if (openedDeviceMap.containsKey(device)) {
-                    return;
-                }
+        if (device.getType() == MidiDeviceInfo.TYPE_VIRTUAL) {
+            if (openedDeviceMap.containsKey(device)) {
+                return;
+            }
 
-                midiManager.openDevice(device, new MidiManager.OnDeviceOpenedListener() {
-                    @Override
-                    public void onDeviceOpened(MidiDevice midiDevice) {
-                        openedDeviceMap.put(device, midiDevice);
+            midiManager.openDevice(device, new MidiManager.OnDeviceOpenedListener() {
+                @Override
+                public void onDeviceOpened(MidiDevice midiDevice) {
+                    openedDeviceMap.put(device, midiDevice);
 
-                        Bundle properties = midiDevice.getInfo().getProperties();
-                        String deviceName = properties.getString(MidiDeviceInfo.PROPERTY_NAME);
-                        String product = properties.getString(MidiDeviceInfo.PROPERTY_PRODUCT);
-                        String vendor = properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER);
+                    MidiDeviceInfo midiDeviceInfo = midiDevice.getInfo();
+                    Bundle properties = midiDeviceInfo.getProperties();
+                    String deviceName = properties.getString(MidiDeviceInfo.PROPERTY_NAME);
+                    String product = properties.getString(MidiDeviceInfo.PROPERTY_PRODUCT);
+                    String vendor = properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER);
 
-                        for (int i = 0; i < midiDevice.getInfo().getInputPortCount(); i++) {
-                            // MidiInputPort: used for MIDI sending
-                            String deviceId = getDeviceId(midiDevice.getInfo().getId(), false, i);
-                            if (!inputPortMap.containsKey(deviceId)) {
-                                MidiInputPort midiInputPort = midiDevice.openInputPort(i);
-                                if (midiInputPort != null) {
-                                    inputPortMap.put(deviceId, midiInputPort);
-                                    if (deviceName != null) {
-                                        deviceNameMap.put(deviceId, deviceName);
-                                    }
-                                    if (product != null) {
-                                        productIdMap.put(deviceId, product);
-                                    }
-                                    if (vendor != null) {
-                                        vendorIdMap.put(deviceId, vendor);
-                                    }
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiOutputDeviceAttached", deviceId);
+                    int midiDeviceInfoId = midiDeviceInfo.getId();
+                    for (int i = 0; i < midiDeviceInfo.getInputPortCount(); i++) {
+                        // MidiInputPort: used for MIDI sending
+                        String deviceId = getDeviceId(midiDeviceInfoId, false, i);
+                        if (!inputPortMap.containsKey(deviceId)) {
+                            MidiInputPort midiInputPort = midiDevice.openInputPort(i);
+                            if (midiInputPort != null) {
+                                inputPortMap.put(deviceId, midiInputPort);
+                                if (deviceName != null) {
+                                    deviceNameMap.put(deviceId, deviceName);
                                 }
-                            }
-                        }
-
-                        for (int i = 0; i < midiDevice.getInfo().getOutputPortCount(); i++) {
-                            // MidiOutputPort: used for MIDI receiving
-                            String deviceId = getDeviceId(midiDevice.getInfo().getId(), true, i);
-                            if (!outputPortMap.containsKey(deviceId)) {
-                                MidiOutputPort midiOutputPort = midiDevice.openOutputPort(i);
-                                if (midiOutputPort != null) {
-                                    MidiReceiver receiver = new InterAppMidiReceiver(deviceId);
-                                    midiOutputPort.onConnect(receiver);
-                                    outputPortMap.put(deviceId, receiver);
-                                    if (deviceName != null) {
-                                        deviceNameMap.put(deviceId, deviceName);
-                                    }
-                                    if (product != null) {
-                                        productIdMap.put(deviceId, product);
-                                    }
-                                    if (vendor != null) {
-                                        vendorIdMap.put(deviceId, vendor);
-                                    }
-                                    UnityPlayer.UnitySendMessage("MidiManager", "OnMidiInputDeviceAttached", deviceId);
+                                if (product != null) {
+                                    productIdMap.put(deviceId, product);
                                 }
+                                if (vendor != null) {
+                                    vendorIdMap.put(deviceId, vendor);
+                                }
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiOutputDeviceAttached", deviceId);
                             }
                         }
                     }
-                }, handler);
+
+                    for (int i = 0; i < midiDeviceInfo.getOutputPortCount(); i++) {
+                        // MidiOutputPort: used for MIDI receiving
+                        String deviceId = getDeviceId(midiDeviceInfoId, true, i);
+                        if (!outputPortMap.containsKey(deviceId)) {
+                            MidiOutputPort midiOutputPort = midiDevice.openOutputPort(i);
+                            if (midiOutputPort != null) {
+                                InterAppMidiReceiver receiver = new InterAppMidiReceiver(deviceId);
+                                receiverMap.put(deviceId, receiver);
+                                midiOutputPort.onConnect(receiver);
+                                outputPortMap.put(deviceId, midiOutputPort);
+                                if (deviceName != null) {
+                                    deviceNameMap.put(deviceId, deviceName);
+                                }
+                                if (product != null) {
+                                    productIdMap.put(deviceId, product);
+                                }
+                                if (vendor != null) {
+                                    vendorIdMap.put(deviceId, vendor);
+                                }
+                                UnityPlayer.UnitySendMessage("MidiManager", "OnMidiInputDeviceAttached", deviceId);
+                            }
+                        }
+                    }
+                }
+            }, handler);
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private void closeMidiDevice(final MidiDevice device) {
+        MidiDeviceInfo midiDeviceInfo = device.getInfo();
+        int midiDeviceInfoId = midiDeviceInfo.getId();
+        for (int i = 0; i < midiDeviceInfo.getInputPortCount(); i++) {
+            String deviceId = getDeviceId(midiDeviceInfoId, false, i);
+            MidiInputPort inputPort = inputPortMap.remove(deviceId);
+            if (inputPort != null) {
+                try {
+                    inputPort.close();
+                } catch (IOException ignored) {
+                }
             }
+        }
+
+        for (int i = 0; i < midiDeviceInfo.getOutputPortCount(); i++) {
+            String deviceId = getDeviceId(midiDeviceInfoId, true, i);
+            MidiOutputPort outputPort = outputPortMap.remove(deviceId);
+            if (outputPort != null) {
+                MidiReceiver receiver = receiverMap.remove(deviceId);
+                if (receiver != null) {
+                    try {
+                        receiver.flush();
+                    } catch (IOException ignored) {
+                    }
+                    outputPort.onDisconnect(receiver);
+                }
+                try {
+                    outputPort.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+
+        try {
+            device.close();
+        } catch (IOException ignored) {
         }
     }
 
@@ -304,6 +403,7 @@ public class InterAppMidiManager {
 
         return null;
     }
+
     public String getProductId(String deviceId) {
         if (productIdMap.containsKey(deviceId)) {
             return productIdMap.get(deviceId);
