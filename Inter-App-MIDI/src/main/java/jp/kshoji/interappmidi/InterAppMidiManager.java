@@ -386,6 +386,11 @@ public class InterAppMidiManager {
             midiManager.openDevice(device, new MidiManager.OnDeviceOpenedListener() {
                 @Override
                 public void onDeviceOpened(MidiDevice midiDevice) {
+                    if (midiDevice == null) {
+                        // do nothing
+                        return;
+                    }
+
                     openedDeviceMap.put(device, midiDevice);
 
                     MidiDeviceInfo midiDeviceInfo = midiDevice.getInfo();
@@ -468,6 +473,11 @@ public class InterAppMidiManager {
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     private void closeMidiDevice(final MidiDevice device) {
+        if (device == null) {
+            // do nothing
+            return;
+        }
+
         MidiDeviceInfo midiDeviceInfo = device.getInfo();
         int midiDeviceInfoId = midiDeviceInfo.getId();
         for (int i = 0; i < midiDeviceInfo.getInputPortCount(); i++) {
