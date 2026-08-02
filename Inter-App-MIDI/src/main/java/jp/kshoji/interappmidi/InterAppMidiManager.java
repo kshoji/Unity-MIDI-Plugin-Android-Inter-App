@@ -1,6 +1,5 @@
 package jp.kshoji.interappmidi;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
@@ -13,6 +12,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.annotation.Keep;
 import androidx.annotation.RequiresApi;
 
 import com.unity3d.player.UnityPlayer;
@@ -27,6 +27,8 @@ import java.util.Set;
 /**
  * Inter-App MIDI Plugin for Unity
  */
+@SuppressWarnings("unused")
+@Keep
 public class InterAppMidiManager {
     private MidiManager midiManager;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -48,10 +50,14 @@ public class InterAppMidiManager {
     boolean acceptVirtualMidi2Devices = false;
     boolean acceptPhysicalMidi2Devices = false;
 
+    @SuppressWarnings("unused")
+    @Keep
     public void initialize(Context context) {
         initialize(context, true, false, false, false);
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void initializeMidi2(Context context) {
         initialize(context, false, false, true, true);
     }
@@ -121,6 +127,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void terminate() {
         acceptVirtualMidi1Devices = false;
         acceptPhysicalMidi1Devices = false;
@@ -163,14 +171,14 @@ public class InterAppMidiManager {
             this.protocol = InterAppMidiManager.PROTOCOL_MIDI1;
         }
 
-        @TargetApi(Build.VERSION_CODES.TIRAMISU)
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         private InterAppMidiReceiver(String deviceId, int protocol) {
             this.deviceId = deviceId;
             this.protocol = protocol;
         }
 
         @Override
-        public void onSend(byte[] message, int offset, int count, long timestamp) throws IOException {
+        public void onSend(byte[] message, int offset, int count, long timestamp) {
             byte[] midiData = new byte[count];
             System.arraycopy(message, offset, midiData, 0, count);
 
@@ -185,8 +193,8 @@ public class InterAppMidiManager {
 
                 StringBuilder data = new StringBuilder();
                 data.append(deviceId);
-                for (int i = 0; i < umpData.length; i++) {
-                    data.append(",").append(umpData[i]);
+                for (long umpDatum : umpData) {
+                    data.append(",").append(umpDatum);
                 }
                 UnityPlayer.UnitySendMessage("MidiManager", "OnUmpMessage", data.toString());
                 return;
@@ -537,6 +545,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public String getDeviceName(String deviceId) {
         if (deviceNameMap.containsKey(deviceId)) {
             return deviceNameMap.get(deviceId);
@@ -545,6 +555,8 @@ public class InterAppMidiManager {
         return null;
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public String getProductId(String deviceId) {
         if (productIdMap.containsKey(deviceId)) {
             return productIdMap.get(deviceId);
@@ -553,6 +565,8 @@ public class InterAppMidiManager {
         return null;
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public String getVendorId(String deviceId) {
         if (vendorIdMap.containsKey(deviceId)) {
             return vendorIdMap.get(deviceId);
@@ -561,6 +575,8 @@ public class InterAppMidiManager {
         return null;
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendUmpMessage(String deviceId, byte[] message) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol == InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -579,6 +595,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiNoteOff(String deviceId, int channel, int note, int velocity) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -597,6 +615,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiNoteOn(String deviceId, int channel, int note, int velocity) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -615,6 +635,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiPolyphonicAftertouch(String deviceId, int channel, int note, int pressure) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -633,6 +655,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiControlChange(String deviceId, int channel, int func, int value) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -651,6 +675,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiProgramChange(String deviceId, int channel, int program) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -669,6 +695,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiChannelAftertouch(String deviceId, int channel, int pressure) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -687,6 +715,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiPitchWheel(String deviceId, int channel, int amount) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -705,6 +735,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiSystemExclusive(String deviceId, byte[] data) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -723,6 +755,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiTimeCodeQuarterFrame(String deviceId, int value) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -741,6 +775,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiSongPositionPointer(String deviceId, int position) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -759,6 +795,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiSongSelect(String deviceId, int song) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -777,6 +815,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiTuneRequest(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -795,6 +835,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiTimingClock(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -813,6 +855,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiStart(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -831,6 +875,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiContinue(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -849,6 +895,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiStop(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -867,6 +915,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiActiveSensing(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
@@ -885,6 +935,8 @@ public class InterAppMidiManager {
         }
     }
 
+    @SuppressWarnings("unused")
+    @Keep
     public void sendMidiReset(String deviceId) {
         Integer protocol = protocolMap.get(deviceId);
         if (protocol == null || protocol != InterAppMidiManager.PROTOCOL_MIDI1) {
