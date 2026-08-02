@@ -94,6 +94,11 @@ public class InterAppMidiManager {
                                 Collections.addAll(devices, midiManager.getDevices());
                             }
 
+                            // detect opened
+                            for (MidiDeviceInfo device : devices) {
+                                openMidiDevice(device);
+                            }
+
                             // detect closed
                             for (MidiDeviceInfo connectedDevice : openedDeviceMap.keySet()) {
                                 if (!devices.contains(connectedDevice)) {
