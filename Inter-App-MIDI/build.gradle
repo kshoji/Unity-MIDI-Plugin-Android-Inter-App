@@ -4,27 +4,28 @@ plugins {
 }
 
 android {
+    compileSdk = 37
+
     defaultConfig {
-        compileSdk 34
-        minSdkVersion 18
-        targetSdkVersion 34
+        minSdk = 18
+        targetSdk = 37
 
         consumerProguardFiles 'proguard-rules.pro'
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     buildTypes {
         debug {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled = false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         release {
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -33,11 +34,11 @@ android {
             withSourcesJar()
         }
     }
-    namespace 'jp.kshoji.interappmidi'
+    namespace = 'jp.kshoji.interappmidi'
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.7.1'
+    implementation 'androidx.annotation:annotation:1.10.0'
     compileOnly project(':UnityPlayerMock')
     api fileTree(dir: 'libs', include: ['*.jar'])
 }
@@ -47,7 +48,7 @@ publishing {
         release(MavenPublication) {
             group = 'jp.kshoji'
             artifactId = 'inter-app-midi'
-            version = '0.0.5'
+            version = '0.0.6'
 
             afterEvaluate {
                 from components.release
